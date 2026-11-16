@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: psb-ai-assistant-db
+    environment:
+      POSTGRES_USER: olp
+      POSTGRES_PASSWORD: olp
+      POSTGRES_DB: psb_assistant
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

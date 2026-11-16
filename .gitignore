@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Editor settings
+.vscode/
+.idea/
+**/.idea/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Build output and logs
+*.log
+*.tmp
+backend/bin/
+backend/build/
+frontend/node_modules/
