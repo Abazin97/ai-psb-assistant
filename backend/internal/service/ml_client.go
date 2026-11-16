@@ -46,6 +46,7 @@ type MLHealth struct {
 	Status string `json:"status"`
 	KBHash string `json:"kb_hash"`
 	Chunks int    `json:"chunks"`
+	Mode   string `json:"mode,omitempty"`
 }
 
 type ML interface {

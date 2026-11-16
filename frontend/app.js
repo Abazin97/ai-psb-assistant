@@ -1,49 +1,42 @@
 (() => {
-  const STORAGE_KEY = 'psb-legal-assistant-chat-v5';
-
-  const leaseSource = {
-    id: 'lease-a-08-2024',
-    title: 'Договор аренды А-08/2024',
-    section: 'п. 3.1, 3.2',
-    excerpt: 'Арендная плата — 450 000 руб. в месяц, включая НДС. Вносится ежемесячно, не позднее 5-го числа текущего месяца.'
-  };
-
-  const laborSource = {
-    id: 'tk-59',
-    title: 'ТК РФ',
-    section: 'ст. 59',
-    excerpt: 'Срочный трудовой договор допускается для сезонных работ, если по природным условиям работу можно выполнять только в течение определённого периода (сезона).'
-  };
-
-  const initialMessages = [
+  const exampleId = 'example-conversation';
+  const exampleMessages = [
     {
       role: 'user',
-      text: 'Какая арендная плата по договору с ООО «Северный Склад» и до какого числа её нужно вносить?',
+      content: 'Какая арендная плата по договору с ООО «Северный Склад» и до какого числа её нужно вносить?',
       time: '10:40'
     },
     {
       role: 'assistant',
-      text: 'Арендная плата — 450 000 руб. в месяц, включая НДС (п. 3.1 договора аренды А-08/2024). Вносится ежемесячно, не позднее 5-го числа текущего месяца (п. 3.2).',
+      kind: 'answer',
+      content: 'Арендная плата — 450 000 руб. в месяц, включая НДС (п. 3.1 договора аренды А-08/2024). Вносится ежемесячно, не позднее 5-го числа текущего месяца (п. 3.2).',
       time: '10:40',
-      sources: [leaseSource]
+      sources: [{
+        id: 'lease-a-08-2024',
+        doc_id: 'lease-a-08-2024',
+        title: 'Договор аренды А-08/2024',
+        section: 'п. 3.1, 3.2',
+        excerpt: 'Арендная плата — 450 000 руб. в месяц, включая НДС. Вносится ежемесячно, не позднее 5-го числа текущего месяца.'
+      }]
     },
     {
       role: 'user',
-      text: 'Мы нанимаем человека только на сезонные работы летом. Можно оформить срочный трудовой договор?',
+      content: 'Мы нанимаем человека только на сезонные работы летом. Можно оформить срочный трудовой договор?',
       time: '10:42'
     },
     {
       role: 'assistant',
-      text: 'Да, срочный договор допускается для сезонных работ, когда по природным условиям работа может выполняться только в течение определённого периода (сезона) (ст. 59 ТК РФ, ч. 1). Нужно, чтобы работа действительно была сезонной по природным условиям. В тексте есть пометка об изменении статьи с 01.03.2027.',
+      kind: 'answer',
+      content: 'Да, срочный договор допускается для сезонных работ, когда по природным условиям работа может выполняться только в течение определённого периода (сезона) (ст. 59 ТК РФ, ч. 1). Нужно, чтобы работа действительно была сезонной по природным условиям. В тексте есть пометка об изменении статьи с 01.03.2027.',
       time: '10:42',
-      sources: [laborSource]
+      sources: [{
+        id: 'tk-59',
+        doc_id: 'tk-59',
+        title: 'ТК РФ',
+        section: 'ст. 59',
+        excerpt: 'Срочный трудовой договор допускается для сезонных работ, если по природным условиям работу можно выполнять только в течение определённого периода (сезона).'
+      }]
     }
-  ];
-
-  const clarificationResponses = [
-    'Чтобы проверить условие, уточните номер договора и дату, на которую нужен ответ. Я сопоставлю основной текст с дополнительными соглашениями и приведу точный пункт.',
-    'Уточните, пожалуйста, контрагента и дату события. Это поможет выбрать применимую редакцию документа и не смешать условия разных договоров.',
-    'Для точного вывода нужен идентификатор документа: номер договора или дата подписания. После уточнения укажу применимое положение и связанные изменения.'
   ];
 
   const messagesEl = document.querySelector('#messages');
@@ -55,56 +48,173 @@
   const evidencePanel = document.querySelector('#evidence-panel');
   const chatLayout = document.querySelector('.chat-layout');
   const toastEl = document.querySelector('#toast');
+  const backendStatus = document.querySelector('#backend-status');
+  const backendStatusLabel = document.querySelector('#backend-status-label');
+  const knowledgeStatus = document.querySelector('#knowledge-status');
 
-  function makeId() {
-    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-  }
+  const state = {
+    chats: [createExampleChat()],
+    activeId: exampleId
+  };
 
-  function starterChat() {
-    return {
-      id: makeId(),
-      title: 'Аренда и сезонные работы',
-      messages: structuredClone(initialMessages)
-    };
-  }
-
-  function loadState() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      if (saved && Array.isArray(saved.chats) && saved.chats.length) {
-        const chats = saved.chats.filter((chat) => chat && Array.isArray(chat.messages));
-        if (chats.length) {
-          const activeId = chats.some((chat) => chat.id === saved.activeId) ? saved.activeId : chats[0].id;
-          return { chats: chats.slice(0, 10), activeId };
-        }
-      }
-    } catch (_) {
-      // A blocked or malformed localStorage should not prevent the chat from opening.
-    }
-    const firstChat = starterChat();
-    return { chats: [firstChat], activeId: firstChat.id };
-  }
-
-  let state = loadState();
-  let responseIndex = 0;
   let toastTimer;
   let isSending = false;
   let selectedSourceId = null;
+
+  function cloneMessage(message) {
+    return { ...message, sources: (message.sources || []).map((source) => ({ ...source })) };
+  }
+
+  function createExampleChat() {
+    return {
+      id: exampleId,
+      title: 'Аренда и сезонные работы',
+      isExample: true,
+      messages: exampleMessages.map(cloneMessage)
+    };
+  }
+
+  function welcomeMessage() {
+    return {
+      role: 'assistant',
+      kind: 'welcome',
+      content: 'Здравствуйте! Напишите вопрос по документам. Я покажу вывод и найденные подтверждающие фрагменты.',
+      time: displayTime(),
+      sources: []
+    };
+  }
 
   function activeChat() {
     return state.chats.find((chat) => chat.id === state.activeId) || state.chats[0];
   }
 
-  function saveState() {
+  function displayTime(value) {
+    if (typeof value === 'string' && /^\d{2}:\d{2}$/.test(value)) return value;
+    const date = value ? new Date(value) : new Date();
+    if (Number.isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(date);
+  }
+
+  function mapSource(source, messageId, index) {
+    return {
+      id: `${messageId || 'source'}:${source.doc_id || 'document'}:${source.fragment_id || index}:${index}`,
+      doc_id: source.doc_id || '',
+      title: source.doc_title || source.doc_id || 'Документ',
+      section: source.fragment_id || 'Фрагмент документа',
+      excerpt: source.text || ''
+    };
+  }
+
+  function mapMessage(message) {
+    return {
+      id: message.id,
+      role: message.role,
+      kind: message.kind,
+      content: message.content || '',
+      created_at: message.created_at,
+      sources: (message.sources || []).map((source, index) => mapSource(source, message.id, index))
+    };
+  }
+
+  async function apiRequest(path, options = {}) {
+    const headers = new Headers(options.headers || {});
+    if (options.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+
+    let response;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      response = await fetch(path, { ...options, headers, credentials: 'same-origin' });
     } catch (_) {
-      // The current conversation remains usable even when storage is unavailable.
+      throw new Error('Не удалось подключиться к backend. Проверьте, что Docker Compose запущен.');
+    }
+
+    let payload = null;
+    if (response.status !== 204) {
+      try {
+        payload = await response.json();
+      } catch (_) {
+        payload = null;
+      }
+    }
+    if (!response.ok) {
+      throw new Error(payload?.error?.message || `Backend вернул ошибку HTTP ${response.status}.`);
+    }
+    return payload;
+  }
+
+  function setBackendStatus(mode, label, detail) {
+    backendStatus.classList.remove('is-online', 'is-degraded', 'is-offline');
+    if (mode) backendStatus.classList.add(mode);
+    backendStatusLabel.textContent = label;
+    knowledgeStatus.textContent = detail;
+  }
+
+  async function refreshBackendHealth() {
+    try {
+      const response = await fetch('/api/health', { credentials: 'same-origin' });
+      const health = await response.json();
+      if (health.db !== 'ok') {
+        setBackendStatus('is-offline', 'База данных недоступна', 'Проверьте сервис PostgreSQL');
+      } else if (health.ml_mode === 'mock') {
+        setBackendStatus('is-mock', 'Mock ML активен', 'Ответы имитируются backend');
+      } else if (health.ml !== 'ok') {
+        setBackendStatus('is-degraded', 'Backend подключён', 'ML-сервис пока недоступен');
+      } else {
+        setBackendStatus('is-online', 'Backend подключён', 'Поиск и ответы доступны');
+      }
+    } catch (_) {
+      setBackendStatus('is-offline', 'Backend недоступен', 'Проверьте сервисы Docker Compose');
     }
   }
 
-  function displayTime(value) {
-    return value || new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(new Date());
+  async function loadChat(chatId) {
+    const result = await apiRequest(`/api/chats/${encodeURIComponent(chatId)}`);
+    const chat = state.chats.find((item) => item.id === chatId);
+    if (!chat) return;
+    chat.title = result.chat.title || chat.title;
+    const messages = (result.messages || []).map(mapMessage);
+    chat.messages = messages.length ? [welcomeMessage(), ...messages] : [welcomeMessage()];
+    state.activeId = chat.id;
+    selectedSourceId = null;
+    render();
+  }
+
+  async function createServerChat() {
+    const result = await apiRequest('/api/chats', { method: 'POST' });
+    const rawChat = result.chat;
+    const chat = {
+      id: rawChat.id,
+      title: rawChat.title || 'Новый диалог',
+      isExample: false,
+      messages: [welcomeMessage()]
+    };
+    state.chats = [chat, ...state.chats.filter((item) => item.id !== chat.id)];
+    state.activeId = chat.id;
+    selectedSourceId = null;
+    return chat;
+  }
+
+  async function initialize() {
+    render();
+    try {
+      const result = await apiRequest('/api/chats?limit=50');
+      const serverChats = (result.chats || []).map((chat) => ({
+        id: chat.id,
+        title: chat.title || 'Новый диалог',
+        isExample: false,
+        messages: []
+      }));
+      state.chats = [...serverChats, createExampleChat()];
+      if (serverChats.length) await loadChat(serverChats[0].id);
+      else state.activeId = exampleId;
+      await refreshBackendHealth();
+      render();
+    } catch (error) {
+      state.chats = [createExampleChat()];
+      state.activeId = exampleId;
+      setBackendStatus('is-offline', 'Backend недоступен', 'Проверьте сервисы Docker Compose');
+      render();
+      showToast(error.message);
+    }
   }
 
   function createSourceChip(source, index) {
@@ -123,7 +233,7 @@
 
   function createMessage(message) {
     const row = document.createElement('article');
-    row.className = `message-row ${message.role}`;
+    row.className = `message-row ${message.role}${message.failed ? ' failed' : ''}`;
 
     const avatar = document.createElement('div');
     avatar.className = `message-avatar ${message.role === 'user' ? 'user-small' : ''}`;
@@ -137,18 +247,24 @@
     const name = document.createElement('strong');
     name.textContent = message.role === 'user' ? 'Анна К.' : 'Помощник юриста';
     const time = document.createElement('span');
-    time.textContent = displayTime(message.time);
+    time.textContent = displayTime(message.created_at || message.time);
     meta.append(name, time);
 
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble';
-    bubble.textContent = message.text;
+    bubble.textContent = message.content || message.text || '';
     content.append(meta, bubble);
 
-    if (message.role === 'assistant') {
+    if (message.role === 'assistant' && message.kind !== 'welcome') {
+      const noteText = {
+        answer: message.sources?.length ? 'ОТВЕТ ПОДТВЕРЖДЁН ИСТОЧНИКОМ' : 'ОТВЕТ АССИСТЕНТА',
+        clarification: 'НУЖНО УТОЧНЕНИЕ',
+        refusal: 'ОТКАЗ С ОБОСНОВАНИЕМ',
+        error: 'СЕРВИС НЕ ОТВЕТИЛ'
+      }[message.kind] || (message.sources?.length ? 'ОТВЕТ ПОДТВЕРЖДЁН ИСТОЧНИКОМ' : 'ОТВЕТ АССИСТЕНТА');
       const note = document.createElement('div');
       note.className = 'message-note';
-      note.textContent = message.sources?.length ? 'ОТВЕТ ПОДТВЕРЖДЁН ИСТОЧНИКОМ' : 'УТОЧНЕНИЕ ПЕРЕД ПРОВЕРКОЙ';
+      note.textContent = noteText;
       content.append(note);
 
       if (Array.isArray(message.sources) && message.sources.length) {
@@ -164,7 +280,7 @@
       copy.type = 'button';
       copy.className = 'message-action copy-message';
       copy.innerHTML = '<svg viewBox="0 0 16 16"><rect x="5" y="5" width="8" height="9" rx="1.5"></rect><path d="M10.5 5V3.8A1.3 1.3 0 0 0 9.2 2.5H4a1.5 1.5 0 0 0-1.5 1.5v6.2A1.3 1.3 0 0 0 3.8 11.5H5"></path></svg><span>Копировать</span>';
-      copy.addEventListener('click', () => copyText(message.text));
+      copy.addEventListener('click', () => copyText(message.content || message.text || ''));
       actions.append(copy);
       content.append(actions);
     }
@@ -191,11 +307,18 @@
       more.className = 'history-more';
       more.textContent = '···';
       button.append(dot, title, more);
-      button.addEventListener('click', () => {
-        state.activeId = chat.id;
-        selectedSourceId = null;
-        saveState();
-        render();
+      button.addEventListener('click', async () => {
+        if (chat.isExample) {
+          state.activeId = exampleId;
+          selectedSourceId = null;
+          render();
+          return;
+        }
+        try {
+          await loadChat(chat.id);
+        } catch (error) {
+          showToast(error.message);
+        }
       });
       list.append(button);
     });
@@ -210,14 +333,14 @@
     const statusDetail = document.querySelector('#evidence-status-detail');
 
     if (!sources.length) {
-      statusTitle.textContent = 'Нужны реквизиты документа';
-      statusDetail.textContent = 'Укажите номер договора или дату';
+      statusTitle.textContent = 'Источников пока нет';
+      statusDetail.textContent = 'Новый ответ появится после запроса';
       const empty = document.createElement('div');
       empty.className = 'source-empty';
       const heading = document.createElement('strong');
-      heading.textContent = 'Источники ответа';
+      heading.textContent = 'Материалы ответа';
       const copy = document.createElement('span');
-      copy.textContent = 'Уточните номер договора или дату подписания. После этого здесь появятся найденные документы и подтверждающие фрагменты.';
+      copy.textContent = 'Когда ассистент найдёт подтверждающие положения, они появятся здесь.';
       empty.append(heading, copy);
       sourceList.append(empty);
       return;
@@ -259,12 +382,10 @@
     messagesEl.replaceChildren();
     const divider = document.createElement('div');
     divider.className = 'day-divider';
-    divider.textContent = 'Сегодня';
+    divider.textContent = chat.isExample ? 'Пример диалога' : 'Сегодня';
     messagesEl.append(divider);
     chat.messages.forEach((message) => messagesEl.append(createMessage(message)));
     suggestions.hidden = chat.messages.length > 2;
-    document.querySelector('.history-item.selected')?.classList.remove('selected');
-    document.querySelector(`[data-chat-id="${CSS.escape(chat.id)}"]`)?.classList.add('selected');
     renderHistory();
     renderEvidence(chat.messages);
     messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -275,7 +396,7 @@
     toastEl.textContent = text;
     toastEl.classList.add('visible');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toastEl.classList.remove('visible'), 2400);
+    toastTimer = setTimeout(() => toastEl.classList.remove('visible'), 3200);
   }
 
   async function copyText(text) {
@@ -287,12 +408,11 @@
     }
   }
 
-  // Future backend integration point: replace this local reply with POST /api/chat.
-  async function sendToAssistant(_message, _history) {
-    await new Promise((resolve) => setTimeout(resolve, 650));
-    const text = clarificationResponses[responseIndex % clarificationResponses.length];
-    responseIndex += 1;
-    return { text, sources: [] };
+  async function sendToAssistant(chatId, text) {
+    return apiRequest(`/api/chats/${encodeURIComponent(chatId)}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ text })
+    });
   }
 
   function showTyping() {
@@ -321,48 +441,66 @@
     const text = rawText.trim();
     if (!text || isSending) return;
     isSending = true;
-    const chat = activeChat();
-    const chatId = chat.id;
-    chat.messages.push({ role: 'user', text, time: displayTime() });
-    if (chat.title === 'Новый диалог' || chat.title === 'Условия оплаты по договору') {
-      chat.title = text.length > 29 ? `${text.slice(0, 27).trim()}…` : text;
-    }
-    saveState();
-    render();
     input.value = '';
     input.style.height = 'auto';
     sendButton.disabled = true;
-    showTyping();
-    suggestions.hidden = true;
 
+    let chat = activeChat();
+    let pendingMessage = null;
     try {
-      // This transcript is passed to the future backend hook along with the newest question.
-      const history = chat.messages.slice(0, -1).map(({ role, text: content }) => ({ role, content }));
-      const result = await sendToAssistant(text, history);
+      if (chat.isExample) chat = await createServerChat();
+      pendingMessage = { role: 'user', kind: 'text', content: text, time: displayTime(), pending: true };
+      chat.messages.push(pendingMessage);
+      render();
+      showTyping();
+      suggestions.hidden = true;
+
+      const result = await sendToAssistant(chat.id, text);
       document.querySelector('#typing-indicator')?.remove();
-      const targetChat = state.chats.find((item) => item.id === chatId);
-      if (targetChat) {
-        targetChat.messages.push({ role: 'assistant', text: result.text, time: displayTime(), sources: result.sources });
-        saveState();
+      const pendingIndex = chat.messages.indexOf(pendingMessage);
+      if (pendingIndex >= 0) {
+        chat.messages.splice(pendingIndex, 1, mapMessage(result.user_message), mapMessage(result.assistant_message));
       }
-      if (activeChat().id === chatId) render();
-    } catch (_) {
+
+      try {
+        const updated = await apiRequest(`/api/chats/${encodeURIComponent(chat.id)}`);
+        chat.title = updated.chat.title || chat.title;
+      } catch (_) {
+        chat.title = text.length > 40 ? `${text.slice(0, 37).trim()}…` : text;
+      }
+      state.chats = [chat, ...state.chats.filter((item) => item.id !== chat.id)];
+      state.activeId = chat.id;
+      selectedSourceId = null;
+      render();
+    } catch (error) {
       document.querySelector('#typing-indicator')?.remove();
-      const targetChat = state.chats.find((item) => item.id === chatId);
-      if (targetChat) {
-        targetChat.messages.push({
+      if (pendingMessage && chat && !chat.isExample) {
+        pendingMessage.failed = true;
+        chat.messages.push({
           role: 'assistant',
-          text: 'Не удалось подготовить ответ. Попробуйте повторить запрос.',
+          kind: 'error',
+          content: error.message || 'Не удалось получить ответ. Попробуйте ещё раз.',
           time: displayTime(),
           sources: []
         });
-        saveState();
+        render();
+      } else {
+        showToast(error.message || 'Не удалось создать чат.');
       }
-      if (activeChat().id === chatId) render();
     } finally {
       isSending = false;
       sendButton.disabled = !input.value.trim();
       input.focus();
+    }
+  }
+
+  async function startNewChat() {
+    try {
+      await createServerChat();
+      render();
+      input.focus();
+    } catch (error) {
+      showToast(error.message);
     }
   }
 
@@ -372,7 +510,7 @@
   });
 
   input.addEventListener('input', () => {
-    sendButton.disabled = !input.value.trim();
+    sendButton.disabled = !input.value.trim() || isSending;
     input.style.height = 'auto';
     input.style.height = `${Math.min(input.scrollHeight, 104)}px`;
   });
@@ -388,21 +526,7 @@
     button.addEventListener('click', () => submitMessage(button.textContent));
   });
 
-  document.querySelector('#new-chat').addEventListener('click', () => {
-    const chat = { id: makeId(), title: 'Новый диалог', messages: [{
-      role: 'assistant',
-      text: 'Здравствуйте! Укажите вопрос и, если он касается договора, его номер или дату. Я помогу найти нужное положение и проверить связанные изменения.',
-      time: displayTime(),
-      sources: []
-    }] };
-    state.chats.unshift(chat);
-    state.chats = state.chats.slice(0, 10);
-    state.activeId = chat.id;
-    selectedSourceId = null;
-    saveState();
-    render();
-    input.focus();
-  });
+  document.querySelector('#new-chat').addEventListener('click', startNewChat);
 
   document.querySelector('#show-sources').addEventListener('click', () => {
     evidencePanel.classList.remove('collapsed');
@@ -449,5 +573,5 @@
     }
   });
 
-  render();
+  initialize();
 })();

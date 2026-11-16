@@ -27,6 +27,7 @@ type Health struct {
 	Status string `json:"status"`
 	DB     string `json:"db"`
 	ML     string `json:"ml"`
+	MLMode string `json:"ml_mode"`
 	KBHash string `json:"kb_hash"`
 }
 
@@ -114,7 +115,7 @@ func (s *Service) Document(ctx context.Context, docID string) (io.ReadCloser, er
 }
 
 func (s *Service) Health(ctx context.Context) Health {
-	health := Health{Status: "ok", DB: "ok", ML: "ok"}
+	health := Health{Status: "ok", DB: "ok", ML: "ok", MLMode: "live"}
 	dbCtx, cancelDB := context.WithTimeout(ctx, 2*time.Second)
 	dbErr := s.repo.Ping(dbCtx)
 	cancelDB()
@@ -126,8 +127,12 @@ func (s *Service) Health(ctx context.Context) Health {
 	}
 	if mlErr != nil || mlHealth.Status != "ok" {
 		health.ML = "error"
+		health.MLMode = "unavailable"
 	} else {
 		health.KBHash = mlHealth.KBHash
+		if mlHealth.Mode != "" {
+			health.MLMode = mlHealth.Mode
+		}
 	}
 	if health.DB != "ok" || health.ML != "ok" {
 		health.Status = "degraded"

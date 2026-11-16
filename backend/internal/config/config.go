@@ -11,6 +11,7 @@ type Config struct {
 	Port         string
 	DatabaseURL  string
 	MLURL        string
+	MLMock       bool
 	MLTimeout    time.Duration
 	HistoryLimit int
 	MaxTextChars int
@@ -50,6 +51,9 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if c.CookieSecure, err = boolEnv("COOKIE_SECURE", false); err != nil {
+		return Config{}, err
+	}
+	if c.MLMock, err = boolEnv("ML_MOCK", false); err != nil {
 		return Config{}, err
 	}
 	port, portErr := strconv.Atoi(c.Port)

@@ -45,9 +45,15 @@ func run(logger *slog.Logger) error {
 	if err := repo.Migrate(ctx); err != nil {
 		return err
 	}
-	ml, err := service.NewMLClient(cfg.MLURL)
-	if err != nil {
-		return err
+	var ml service.ML
+	if cfg.MLMock {
+		ml = service.NewMockML()
+		logger.Warn("using mock ML service")
+	} else {
+		ml, err = service.NewMLClient(cfg.MLURL)
+		if err != nil {
+			return err
+		}
 	}
 	app := service.New(repo, ml, cfg.MaxTextChars, cfg.HistoryLimit, cfg.MLTimeout)
 	handler := httpapi.New(app, cfg.MaxBodyBytes, cfg.CookieSecure, logger)

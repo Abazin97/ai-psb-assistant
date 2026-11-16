@@ -83,6 +83,14 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 3px sol
 .topbar-right { gap: 13px; }
 .review-badge { display: flex; align-items: center; gap: 7px; height: 25px; padding: 0 10px; border: 1px solid #f6d5c7; border-radius: 20px; color: #a85132; background: #fff7f2; font-size: 9px; font-weight: 700; }
 .review-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 0 3px rgba(255,96,56,.12); }
+.review-badge.is-online { border-color: #ccebdc; color: #26724f; background: #f2fbf6; }
+.review-badge.is-online .review-badge-dot { background: #38a775; box-shadow: 0 0 0 3px rgba(56,167,117,.12); }
+.review-badge.is-degraded { border-color: #f3dfbb; color: #94642e; background: #fff9ef; }
+.review-badge.is-degraded .review-badge-dot { background: #d69b42; box-shadow: 0 0 0 3px rgba(214,155,66,.12); }
+.review-badge.is-mock { border-color: #ded7ff; color: #55459a; background: #f8f5ff; }
+.review-badge.is-mock .review-badge-dot { background: #8066e6; box-shadow: 0 0 0 3px rgba(128,102,230,.12); }
+.review-badge.is-offline { border-color: #f1d0d0; color: #9c4545; background: #fff5f5; }
+.review-badge.is-offline .review-badge-dot { background: #cf6868; box-shadow: 0 0 0 3px rgba(207,104,104,.12); }
 .help-button { display: grid; width: 24px; height: 24px; border: 1px solid #e2e6ef; border-radius: 50%; color: #7d869a; background: #fff; place-items: center; font-size: 11px; font-weight: 700; }
 .page-heading { position: relative; display: flex; align-items: center; justify-content: space-between; min-height: 125px; padding: 16px 40px 17px 42px; overflow: hidden; }
 .page-heading::after { position: absolute; right: 100px; bottom: -85px; width: 320px; height: 120px; border-radius: 50%; background: radial-gradient(ellipse, rgba(151,120,255,.1), transparent 69%); content: ''; pointer-events: none; }
