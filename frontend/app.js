@@ -48,9 +48,6 @@
   const evidencePanel = document.querySelector('#evidence-panel');
   const chatLayout = document.querySelector('.chat-layout');
   const toastEl = document.querySelector('#toast');
-  const backendStatus = document.querySelector('#backend-status');
-  const backendStatusLabel = document.querySelector('#backend-status-label');
-  const knowledgeStatus = document.querySelector('#knowledge-status');
 
   const state = {
     chats: [createExampleChat()],
@@ -141,31 +138,6 @@
     return payload;
   }
 
-  function setBackendStatus(mode, label, detail) {
-    backendStatus.classList.remove('is-online', 'is-degraded', 'is-offline');
-    if (mode) backendStatus.classList.add(mode);
-    backendStatusLabel.textContent = label;
-    knowledgeStatus.textContent = detail;
-  }
-
-  async function refreshBackendHealth() {
-    try {
-      const response = await fetch('/api/health', { credentials: 'same-origin' });
-      const health = await response.json();
-      if (health.db !== 'ok') {
-        setBackendStatus('is-offline', 'База данных недоступна', 'Проверьте сервис PostgreSQL');
-      } else if (health.ml_mode === 'mock') {
-        setBackendStatus('is-mock', 'Mock ML активен', 'Ответы имитируются backend');
-      } else if (health.ml !== 'ok') {
-        setBackendStatus('is-degraded', 'Backend подключён', 'ML-сервис пока недоступен');
-      } else {
-        setBackendStatus('is-online', 'Backend подключён', 'Поиск и ответы доступны');
-      }
-    } catch (_) {
-      setBackendStatus('is-offline', 'Backend недоступен', 'Проверьте сервисы Docker Compose');
-    }
-  }
-
   async function loadChat(chatId) {
     const result = await apiRequest(`/api/chats/${encodeURIComponent(chatId)}`);
     const chat = state.chats.find((item) => item.id === chatId);
@@ -206,12 +178,10 @@
       state.chats = [...serverChats, createExampleChat()];
       if (serverChats.length) await loadChat(serverChats[0].id);
       else state.activeId = exampleId;
-      await refreshBackendHealth();
       render();
     } catch (error) {
       state.chats = [createExampleChat()];
       state.activeId = exampleId;
-      setBackendStatus('is-offline', 'Backend недоступен', 'Проверьте сервисы Docker Compose');
       render();
       showToast(error.message);
     }

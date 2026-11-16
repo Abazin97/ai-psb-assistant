@@ -15,6 +15,8 @@ import (
 
 	"backend/internal/domain/models"
 	"backend/internal/requestmeta"
+
+	"github.com/google/uuid"
 )
 
 var (
@@ -69,7 +71,21 @@ func NewMLClient(baseURL string) (*MLClient, error) {
 }
 
 func (c *MLClient) Answer(ctx context.Context, request AnswerRequest) (AnswerResponse, error) {
-	body, err := json.Marshal(request)
+	// solution.py's batch input columns are id,question. Keep the same names
+	// on the future HTTP boundary, and pack the chat history into question
+	// because the ML script accepts a dialogue string rather than a history array.
+	requestID := requestmeta.RequestID(ctx)
+	if requestID == "" {
+		requestID = uuid.NewString()
+	}
+	wireRequest := struct {
+		ID       string `json:"id"`
+		Question string `json:"question"`
+	}{
+		ID:       requestID,
+		Question: formatMLDialogue(request),
+	}
+	body, err := json.Marshal(wireRequest)
 	if err != nil {
 		return AnswerResponse{}, fmt.Errorf("encode ML request: %w", err)
 	}
@@ -91,46 +107,51 @@ func (c *MLClient) Answer(ctx context.Context, request AnswerRequest) (AnswerRes
 		return AnswerResponse{}, fmt.Errorf("%w: read response: %v", ErrMLResponse, err)
 	}
 	var raw struct {
-		Type    string `json:"type"`
-		Answer  string `json:"answer"`
-		Sources []struct {
-			Ordinal    int    `json:"ordinal"`
-			DocID      string `json:"doc_id"`
-			DocTitle   string `json:"doc_title"`
-			FragmentID string `json:"fragment_id"`
-			Text       string `json:"text"`
-			Start      *int   `json:"start"`
-			End        *int   `json:"end"`
-		} `json:"sources"`
-		Meta json.RawMessage `json:"meta"`
+		ID     string `json:"id"`
+		Answer string `json:"answer"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return AnswerResponse{}, fmt.Errorf("%w: decode JSON: %v", ErrMLResponse, err)
 	}
-	if raw.Type != "answer" && raw.Type != "clarification" && raw.Type != "refusal" {
-		return AnswerResponse{}, fmt.Errorf("%w: unknown answer type", ErrMLResponse)
+	if raw.ID != wireRequest.ID {
+		return AnswerResponse{}, fmt.Errorf("%w: response id does not match request", ErrMLResponse)
 	}
-	if len(raw.Meta) == 0 {
-		raw.Meta = json.RawMessage("{}")
+	if strings.TrimSpace(raw.Answer) == "" {
+		return AnswerResponse{}, fmt.Errorf("%w: empty answer", ErrMLResponse)
 	}
-	var metaObject map[string]json.RawMessage
-	if err := json.Unmarshal(raw.Meta, &metaObject); err != nil || metaObject == nil {
-		return AnswerResponse{}, fmt.Errorf("%w: meta must be a JSON object", ErrMLResponse)
-	}
-	answer := AnswerResponse{
-		Kind:    raw.Type,
+	return AnswerResponse{
+		Kind:    "answer",
 		Answer:  raw.Answer,
-		Meta:    append(json.RawMessage(nil), raw.Meta...),
-		Sources: make([]models.Source, 0, len(raw.Sources)),
+		Meta:    json.RawMessage(`{}`),
+		Sources: []models.Source{},
+	}, nil
+}
+
+func formatMLDialogue(request AnswerRequest) string {
+	var dialogue strings.Builder
+	for _, message := range request.History {
+		var role string
+		switch strings.ToLower(strings.TrimSpace(message.Role)) {
+		case "user":
+			role = "Пользователь"
+		case "assistant":
+			role = "Ассистент"
+		default:
+			continue
+		}
+		content := strings.Join(strings.Fields(message.Content), " ")
+		if content == "" {
+			continue
+		}
+		dialogue.WriteByte('[')
+		dialogue.WriteString(role)
+		dialogue.WriteString("]: ")
+		dialogue.WriteString(content)
+		dialogue.WriteByte('\n')
 	}
-	for _, source := range raw.Sources {
-		answer.Sources = append(answer.Sources, models.Source{
-			Ordinal: source.Ordinal, DocID: source.DocID, DocTitle: source.DocTitle,
-			FragmentID: source.FragmentID, Text: source.Text,
-			StartOffset: source.Start, EndOffset: source.End,
-		})
-	}
-	return answer, nil
+	dialogue.WriteString("[Пользователь]: ")
+	dialogue.WriteString(strings.Join(strings.Fields(request.Question), " "))
+	return dialogue.String()
 }
 
 func (c *MLClient) Document(ctx context.Context, docID string) (io.ReadCloser, error) {

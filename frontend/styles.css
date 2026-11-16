@@ -42,7 +42,7 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 3px sol
 .side-action:hover { background: rgba(255,255,255,.08); }
 .side-action.active { color: #fff; background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.07); }
 .side-icon { display: grid; flex: 0 0 18px; width: 18px; height: 18px; place-items: center; color: #c6d1ff; }
-.side-icon svg, .knowledge-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.4; }
+.side-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.4; }
 .plus-icon { width: 17px; height: 17px; border: 1px solid rgba(255,255,255,.6); border-radius: 5px; font-size: 17px; font-weight: 400; line-height: 14px; }
 .shortcut { margin-left: auto; color: #9faedc; font-size: 9px; font-weight: 600; opacity: .72; }
 .sidebar-divider { height: 1px; margin: 24px 4px 20px; background: rgba(255,255,255,.12); }
@@ -57,13 +57,7 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 3px sol
 .history-more { padding: 0 1px 5px; font-size: 17px; letter-spacing: 1px; opacity: 0; }
 .history-item:hover .history-more { opacity: .75; }
 .sidebar-spacer { flex: 1; min-height: 24px; }
-.knowledge-card { position: relative; display: flex; align-items: center; gap: 10px; min-height: 55px; margin: 0 2px 15px; padding: 10px; border: 1px solid rgba(255,255,255,.12); border-radius: 10px; background: rgba(255,255,255,.07); }
-.knowledge-icon { display: grid; width: 29px; height: 29px; flex: 0 0 29px; color: #b5a5ff; background: rgba(151,125,255,.16); border-radius: 8px; place-items: center; }
-.knowledge-icon svg { width: 17px; height: 17px; }
-.knowledge-copy, .profile-copy { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
-.knowledge-copy strong { color: #fff; font-size: 10px; font-weight: 700; }
-.knowledge-copy span { color: #abb8df; font-size: 9px; }
-.knowledge-dot { width: 6px; height: 6px; margin-left: auto; border-radius: 50%; background: #ff946b; box-shadow: 0 0 0 3px rgba(255,148,107,.12); }
+.profile-copy { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
 .profile-row { z-index: 1; display: flex; align-items: center; gap: 9px; padding: 0 5px 2px; }
 .avatar { display: grid; width: 30px; height: 30px; flex: 0 0 30px; border-radius: 50%; place-items: center; }
 .user-avatar { border: 1px solid rgba(255,255,255,.4); color: #fff; background: linear-gradient(135deg, #f09b7c, #a4589b); font-size: 9px; font-weight: 800; }
@@ -81,16 +75,6 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 3px sol
 .context-mark { display: grid; width: 21px; height: 21px; border-radius: 6px; color: #fff; background: var(--navy); place-items: center; font-size: 10px; font-weight: 800; }
 .crumb-separator { color: #c4c9d4; }
 .topbar-right { gap: 13px; }
-.review-badge { display: flex; align-items: center; gap: 7px; height: 25px; padding: 0 10px; border: 1px solid #f6d5c7; border-radius: 20px; color: #a85132; background: #fff7f2; font-size: 9px; font-weight: 700; }
-.review-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 0 3px rgba(255,96,56,.12); }
-.review-badge.is-online { border-color: #ccebdc; color: #26724f; background: #f2fbf6; }
-.review-badge.is-online .review-badge-dot { background: #38a775; box-shadow: 0 0 0 3px rgba(56,167,117,.12); }
-.review-badge.is-degraded { border-color: #f3dfbb; color: #94642e; background: #fff9ef; }
-.review-badge.is-degraded .review-badge-dot { background: #d69b42; box-shadow: 0 0 0 3px rgba(214,155,66,.12); }
-.review-badge.is-mock { border-color: #ded7ff; color: #55459a; background: #f8f5ff; }
-.review-badge.is-mock .review-badge-dot { background: #8066e6; box-shadow: 0 0 0 3px rgba(128,102,230,.12); }
-.review-badge.is-offline { border-color: #f1d0d0; color: #9c4545; background: #fff5f5; }
-.review-badge.is-offline .review-badge-dot { background: #cf6868; box-shadow: 0 0 0 3px rgba(207,104,104,.12); }
 .help-button { display: grid; width: 24px; height: 24px; border: 1px solid #e2e6ef; border-radius: 50%; color: #7d869a; background: #fff; place-items: center; font-size: 11px; font-weight: 700; }
 .page-heading { position: relative; display: flex; align-items: center; justify-content: space-between; min-height: 125px; padding: 16px 40px 17px 42px; overflow: hidden; }
 .page-heading::after { position: absolute; right: 100px; bottom: -85px; width: 320px; height: 120px; border-radius: 50%; background: radial-gradient(ellipse, rgba(151,120,255,.1), transparent 69%); content: ''; pointer-events: none; }
@@ -235,11 +219,10 @@ h1 { margin: 7px 0 2px; color: #0b1f64; font-size: 27px; font-weight: 800; lette
   .sidebar { align-items: center; padding: 18px 9px 12px; }
   .brand { margin: 0 0 38px; padding: 3px; }
   .brand-logo { width: 32px; height: 30px; object-fit: cover; object-position: left center; }
-  .brand-name, .sidebar-section-label, .side-action > span:not(.side-icon), .shortcut, .sidebar-divider, .sidebar-heading-row, .history-list, .knowledge-copy, .knowledge-dot, .profile-copy, .profile-menu { display: none; }
+  .brand-name, .sidebar-section-label, .side-action > span:not(.side-icon), .shortcut, .sidebar-divider, .sidebar-heading-row, .history-list, .profile-copy, .profile-menu { display: none; }
   .side-action { justify-content: center; width: 43px; height: 43px; min-height: 43px; margin-bottom: 6px; padding: 0; }
   .side-icon { flex-basis: 19px; }
   .sidebar-spacer { min-height: 15px; }
-  .knowledge-card { width: 43px; min-height: 43px; justify-content: center; margin: 0 0 13px; padding: 0; }
   .profile-row { padding: 0; }
   .topbar { height: 55px; min-height: 55px; padding: 0 17px; }
   .chat-layout { grid-template-columns: minmax(0, 1fr); padding-bottom: 14px; }
@@ -255,7 +238,7 @@ h1 { margin: 7px 0 2px; color: #0b1f64; font-size: 27px; font-weight: 800; lette
   .sidebar { position: relative; z-index: 3; display: flex; height: 46px; min-height: 46px; flex-direction: row; justify-content: space-between; padding: 0 13px; }
   .brand { margin: 0; padding: 2px 5px; }
   .brand-logo { width: 98px; height: auto; object-fit: contain; }
-  .sidebar > .sidebar-section-label, .sidebar-divider, .sidebar-heading-row, .history-list, .sidebar-spacer, .knowledge-card, .profile-row { display: none; }
+  .sidebar > .sidebar-section-label, .sidebar-divider, .sidebar-heading-row, .history-list, .sidebar-spacer, .profile-row { display: none; }
   .side-action { display: none; }
   .sidebar::after { margin-left: auto; color: #bac6ee; content: 'ПСБ · Юридический ассистент'; font-size: 9px; font-weight: 600; }
   .main-area { min-height: 0; }
@@ -263,7 +246,6 @@ h1 { margin: 7px 0 2px; color: #0b1f64; font-size: 27px; font-weight: 800; lette
   .topbar-context { gap: 6px; font-size: 8px; }
   .context-mark { width: 18px; height: 18px; font-size: 9px; }
   .topbar-context > span:nth-child(2), .crumb-separator { display: none; }
-  .review-badge { height: 22px; padding: 0 7px; font-size: 7px; }
   .topbar-right { gap: 7px; }
   .help-button { width: 21px; height: 21px; }
   .page-heading { min-height: 99px; padding: 13px 16px 12px; }

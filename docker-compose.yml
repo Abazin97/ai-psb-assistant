@@ -25,12 +25,48 @@ services:
       PORT: "8080"
       DATABASE_URL: "postgres://olp:olp@postgres:5432/postgres?sslmode=disable"
       COOKIE_SECURE: "false"
-      ML_MOCK: "${ML_MOCK:-true}"
+      ML_URL: "${ML_URL:-http://ml:8000}"
+      ML_MOCK: "${ML_MOCK:-false}"
     expose:
       - "8080"
     depends_on:
       postgres:
         condition: service_healthy
+      ml:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ml:
+    build:
+      context: ./ml
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8000"
+      LLM_BASE_URL: "${LLM_BASE_URL:-https://openrouter.ai/api/v1}"
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: "${LLM_MODEL:-deepseek/deepseek-v4.1-flash}"
+      EMBEDDER_BASE_URL: "${EMBEDDER_BASE_URL:-}"
+      EMBEDDER_API_KEY: "${EMBEDDER_API_KEY:-}"
+      RERANKER_BASE_URL: "${RERANKER_BASE_URL:-}"
+      RERANKER_API_KEY: "${RERANKER_API_KEY:-}"
+      USE_EMBEDDINGS: "${USE_EMBEDDINGS:-true}"
+      USE_RERANKER: "${USE_RERANKER:-true}"
+      ML_REQUEST_BUDGET_SECONDS: "${ML_REQUEST_BUDGET_SECONDS:-130}"
+      MAX_WORKERS: "${ML_MAX_WORKERS:-4}"
+    ports:
+    - "127.0.0.1:8001:8000"
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 180s
     restart: unless-stopped
 
   frontend:
