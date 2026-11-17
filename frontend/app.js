@@ -1,44 +1,4 @@
 (() => {
-  const exampleId = 'example-conversation';
-  const exampleMessages = [
-    {
-      role: 'user',
-      content: 'Какая арендная плата по договору с ООО «Северный Склад» и до какого числа её нужно вносить?',
-      time: '10:40'
-    },
-    {
-      role: 'assistant',
-      kind: 'answer',
-      content: 'Арендная плата — 450 000 руб. в месяц, включая НДС (п. 3.1 договора аренды А-08/2024). Вносится ежемесячно, не позднее 5-го числа текущего месяца (п. 3.2).',
-      time: '10:40',
-      sources: [{
-        id: 'lease-a-08-2024',
-        doc_id: 'lease-a-08-2024',
-        title: 'Договор аренды А-08/2024',
-        section: 'п. 3.1, 3.2',
-        excerpt: 'Арендная плата — 450 000 руб. в месяц, включая НДС. Вносится ежемесячно, не позднее 5-го числа текущего месяца.'
-      }]
-    },
-    {
-      role: 'user',
-      content: 'Мы нанимаем человека только на сезонные работы летом. Можно оформить срочный трудовой договор?',
-      time: '10:42'
-    },
-    {
-      role: 'assistant',
-      kind: 'answer',
-      content: 'Да, срочный договор допускается для сезонных работ, когда по природным условиям работа может выполняться только в течение определённого периода (сезона) (ст. 59 ТК РФ, ч. 1). Нужно, чтобы работа действительно была сезонной по природным условиям. В тексте есть пометка об изменении статьи с 01.03.2027.',
-      time: '10:42',
-      sources: [{
-        id: 'tk-59',
-        doc_id: 'tk-59',
-        title: 'ТК РФ',
-        section: 'ст. 59',
-        excerpt: 'Срочный трудовой договор допускается для сезонных работ, если по природным условиям работу можно выполнять только в течение определённого периода (сезона).'
-      }]
-    }
-  ];
-
   const messagesEl = document.querySelector('#messages');
   const composer = document.querySelector('#composer');
   const input = document.querySelector('#message-input');
@@ -49,25 +9,34 @@
   const chatLayout = document.querySelector('.chat-layout');
   const toastEl = document.querySelector('#toast');
 
-  const state = {
-    chats: [createExampleChat()],
-    activeId: exampleId
-  };
+  const state = { chats: [], activeId: null };
 
   let toastTimer;
   let isSending = false;
   let selectedSourceId = null;
 
-  function cloneMessage(message) {
-    return { ...message, sources: (message.sources || []).map((source) => ({ ...source })) };
+  function renderAssistantText(element, value) {
+    const text = String(value || '').replace(/\\\*/g, '*');
+    const boldPattern = /\*\*(.+?)\*\*/gs;
+    let position = 0;
+
+    for (const match of text.matchAll(boldPattern)) {
+      element.append(document.createTextNode(text.slice(position, match.index)));
+      const strong = document.createElement('strong');
+      strong.textContent = match[1];
+      element.append(strong);
+      position = match.index + match[0].length;
+    }
+
+    element.append(document.createTextNode(text.slice(position)));
   }
 
-  function createExampleChat() {
+  function createDraftChat() {
     return {
-      id: exampleId,
-      title: 'Аренда и сезонные работы',
-      isExample: true,
-      messages: exampleMessages.map(cloneMessage)
+      id: 'draft-new-chat',
+      title: 'Новый диалог',
+      isDraft: true,
+      messages: [welcomeMessage()]
     };
   }
 
@@ -156,32 +125,34 @@
     const chat = {
       id: rawChat.id,
       title: rawChat.title || 'Новый диалог',
-      isExample: false,
+      isDraft: false,
       messages: [welcomeMessage()]
     };
-    state.chats = [chat, ...state.chats.filter((item) => item.id !== chat.id)];
+    state.chats = [chat, ...state.chats.filter((item) => item.id !== chat.id && !item.isDraft)];
     state.activeId = chat.id;
     selectedSourceId = null;
     return chat;
   }
 
   async function initialize() {
+    const draft = createDraftChat();
+    state.chats = [draft];
+    state.activeId = draft.id;
     render();
     try {
       const result = await apiRequest('/api/chats?limit=50');
       const serverChats = (result.chats || []).map((chat) => ({
         id: chat.id,
         title: chat.title || 'Новый диалог',
-        isExample: false,
+        isDraft: false,
         messages: []
       }));
-      state.chats = [...serverChats, createExampleChat()];
-      if (serverChats.length) await loadChat(serverChats[0].id);
-      else state.activeId = exampleId;
+      state.chats = [draft, ...serverChats];
+      state.activeId = draft.id;
       render();
     } catch (error) {
-      state.chats = [createExampleChat()];
-      state.activeId = exampleId;
+      state.chats = [draft];
+      state.activeId = draft.id;
       render();
       showToast(error.message);
     }
@@ -222,7 +193,9 @@
 
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble';
-    bubble.textContent = message.content || message.text || '';
+    const messageText = message.content || message.text || '';
+    if (message.role === 'assistant') renderAssistantText(bubble, messageText);
+    else bubble.textContent = messageText;
     content.append(meta, bubble);
 
     if (message.role === 'assistant' && message.kind !== 'welcome') {
@@ -278,8 +251,8 @@
       more.textContent = '···';
       button.append(dot, title, more);
       button.addEventListener('click', async () => {
-        if (chat.isExample) {
-          state.activeId = exampleId;
+        if (chat.isDraft) {
+          state.activeId = chat.id;
           selectedSourceId = null;
           render();
           return;
@@ -352,7 +325,7 @@
     messagesEl.replaceChildren();
     const divider = document.createElement('div');
     divider.className = 'day-divider';
-    divider.textContent = chat.isExample ? 'Пример диалога' : 'Сегодня';
+    divider.textContent = 'Сегодня';
     messagesEl.append(divider);
     chat.messages.forEach((message) => messagesEl.append(createMessage(message)));
     suggestions.hidden = chat.messages.length > 2;
@@ -418,7 +391,7 @@
     let chat = activeChat();
     let pendingMessage = null;
     try {
-      if (chat.isExample) chat = await createServerChat();
+      if (chat.isDraft) chat = await createServerChat();
       pendingMessage = { role: 'user', kind: 'text', content: text, time: displayTime(), pending: true };
       chat.messages.push(pendingMessage);
       render();
@@ -444,7 +417,7 @@
       render();
     } catch (error) {
       document.querySelector('#typing-indicator')?.remove();
-      if (pendingMessage && chat && !chat.isExample) {
+      if (pendingMessage && chat && !chat.isDraft) {
         pendingMessage.failed = true;
         chat.messages.push({
           role: 'assistant',
