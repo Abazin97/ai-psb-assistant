@@ -27,7 +27,7 @@ type App interface {
 	GetChat(context.Context, string, uuid.UUID) (models.Chat, []models.Message, error)
 	DeleteChat(context.Context, string, uuid.UUID) error
 	Ask(context.Context, string, uuid.UUID, string) (repository.Exchange, error)
-	Document(context.Context, string) (io.ReadCloser, error)
+	Document(context.Context, string) (service.DocumentContent, error)
 	Health(context.Context) service.Health
 }
 
@@ -235,16 +235,23 @@ func (h *Handler) getDocument(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusNotFound, "document_not_found", "Документ не найден")
 		return
 	}
-	body, err := h.app.Document(r.Context(), docID)
+	document, err := h.app.Document(r.Context(), docID)
 	if err != nil {
 		h.writeAppError(w, r, err)
 		return
 	}
-	defer body.Close()
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	defer document.Body.Close()
+	contentType := document.ContentType
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", contentType)
+	if document.ContentDisposition != "" {
+		w.Header().Set("Content-Disposition", document.ContentDisposition)
+	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "private, max-age=300")
-	if _, err := io.Copy(w, body); err != nil && r.Context().Err() == nil {
+	if _, err := io.Copy(w, document.Body); err != nil && r.Context().Err() == nil {
 		h.logger.Error("stream document", "error", err)
 	}
 }

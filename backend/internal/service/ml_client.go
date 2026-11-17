@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"backend/internal/domain"
 	"backend/internal/domain/models"
 	"backend/internal/requestmeta"
 
@@ -53,8 +54,14 @@ type MLHealth struct {
 
 type ML interface {
 	Answer(ctx context.Context, request AnswerRequest) (AnswerResponse, error)
-	Document(ctx context.Context, docID string) (io.ReadCloser, error)
+	Document(ctx context.Context, docID string) (DocumentContent, error)
 	Health(ctx context.Context) (MLHealth, error)
+}
+
+type DocumentContent struct {
+	Body               io.ReadCloser
+	ContentType        string
+	ContentDisposition string
 }
 
 type MLClient struct {
@@ -107,8 +114,10 @@ func (c *MLClient) Answer(ctx context.Context, request AnswerRequest) (AnswerRes
 		return AnswerResponse{}, fmt.Errorf("%w: read response: %v", ErrMLResponse, err)
 	}
 	var raw struct {
-		ID     string `json:"id"`
-		Answer string `json:"answer"`
+		Kind    string          `json:"kind"`
+		ID      string          `json:"id"`
+		Answer  string          `json:"answer"`
+		Sources []models.Source `json:"sources"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return AnswerResponse{}, fmt.Errorf("%w: decode JSON: %v", ErrMLResponse, err)
@@ -119,11 +128,23 @@ func (c *MLClient) Answer(ctx context.Context, request AnswerRequest) (AnswerRes
 	if strings.TrimSpace(raw.Answer) == "" {
 		return AnswerResponse{}, fmt.Errorf("%w: empty answer", ErrMLResponse)
 	}
+	kind := raw.Kind
+	if kind == "" {
+		// Accept older ML deployments during a rolling update.
+		kind = domain.KindAnswer
+	}
+	if kind != domain.KindAnswer && kind != domain.KindClarification && kind != domain.KindRefusal {
+		return AnswerResponse{}, fmt.Errorf("%w: unsupported answer kind %q", ErrMLResponse, kind)
+	}
+	sources := raw.Sources
+	if kind != domain.KindAnswer {
+		sources = nil
+	}
 	return AnswerResponse{
-		Kind:    "answer",
+		Kind:    kind,
 		Answer:  raw.Answer,
 		Meta:    json.RawMessage(`{}`),
-		Sources: []models.Source{},
+		Sources: sources,
 	}, nil
 }
 
@@ -154,24 +175,28 @@ func formatMLDialogue(request AnswerRequest) string {
 	return dialogue.String()
 }
 
-func (c *MLClient) Document(ctx context.Context, docID string) (io.ReadCloser, error) {
+func (c *MLClient) Document(ctx context.Context, docID string) (DocumentContent, error) {
 	req, err := c.newRequest(ctx, http.MethodGet, "/documents/"+url.PathEscape(docID), nil)
 	if err != nil {
-		return nil, fmt.Errorf("create ML document request: %w", err)
+		return DocumentContent{}, fmt.Errorf("create ML document request: %w", err)
 	}
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, classifyTransportError(err)
+		return DocumentContent{}, classifyTransportError(err)
 	}
 	if resp.StatusCode == http.StatusNotFound {
 		resp.Body.Close()
-		return nil, ErrDocumentNotFound
+		return DocumentContent{}, ErrDocumentNotFound
 	}
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
-		return nil, fmt.Errorf("%w: ML document endpoint returned HTTP %d", ErrMLResponse, resp.StatusCode)
+		return DocumentContent{}, fmt.Errorf("%w: ML document endpoint returned HTTP %d", ErrMLResponse, resp.StatusCode)
 	}
-	return resp.Body, nil
+	return DocumentContent{
+		Body:               resp.Body,
+		ContentType:        resp.Header.Get("Content-Type"),
+		ContentDisposition: resp.Header.Get("Content-Disposition"),
+	}, nil
 }
 
 func (c *MLClient) Health(ctx context.Context) (MLHealth, error) {

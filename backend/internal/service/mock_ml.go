@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -9,8 +10,7 @@ import (
 	"backend/internal/domain/models"
 )
 
-// MockML mimics the ML HTTP contract for local frontend/backend development.
-// Its sample answers come from the example dialogues shown in the frontend.
+// MockML mimics the ML HTTP contract with prepared scenarios for local development.
 type MockML struct{}
 
 func NewMockML() *MockML { return &MockML{} }
@@ -55,9 +55,9 @@ func (m *MockML) Answer(ctx context.Context, request AnswerRequest) (AnswerRespo
 	}
 }
 
-func (m *MockML) Document(ctx context.Context, docID string) (io.ReadCloser, error) {
+func (m *MockML) Document(ctx context.Context, docID string) (DocumentContent, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return DocumentContent{}, err
 	}
 	var text string
 	switch docID {
@@ -66,9 +66,17 @@ func (m *MockML) Document(ctx context.Context, docID string) (io.ReadCloser, err
 	case "tk-59":
 		text = "ТК РФ, статья 59, часть 1. Срочный трудовой договор допускается для сезонных работ, когда по природным условиям работа может выполняться только в течение определённого периода (сезона)."
 	default:
-		return nil, ErrDocumentNotFound
+		return DocumentContent{}, ErrDocumentNotFound
 	}
-	return io.NopCloser(strings.NewReader(text)), nil
+	content, err := textToDocx(text)
+	if err != nil {
+		return DocumentContent{}, err
+	}
+	return DocumentContent{
+		Body:               io.NopCloser(bytes.NewReader(content)),
+		ContentType:        docxContentType,
+		ContentDisposition: "attachment; filename=\"" + docID + ".docx\"",
+	}, nil
 }
 
 func (m *MockML) Health(ctx context.Context) (MLHealth, error) {

@@ -13,7 +13,8 @@
 
   let toastTimer;
   let isSending = false;
-  let selectedSourceId = null;
+  const expandedSourceIds = new Set();
+  let focusedSourceId = null;
 
   function renderAssistantText(element, value) {
     const text = String(value || '').replace(/\\\*/g, '*');
@@ -115,7 +116,6 @@
     const messages = (result.messages || []).map(mapMessage);
     chat.messages = messages.length ? [welcomeMessage(), ...messages] : [welcomeMessage()];
     state.activeId = chat.id;
-    selectedSourceId = null;
     render();
   }
 
@@ -130,7 +130,6 @@
     };
     state.chats = [chat, ...state.chats.filter((item) => item.id !== chat.id && !item.isDraft)];
     state.activeId = chat.id;
-    selectedSourceId = null;
     return chat;
   }
 
@@ -159,17 +158,18 @@
   }
 
   function createSourceChip(source, index) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'message-source';
-    button.dataset.sourceId = source.id;
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'message-source';
+    chip.dataset.sourceId = source.id;
+    chip.setAttribute('aria-label', `Открыть материал: ${source.title}, ${source.section}`);
     const glyph = document.createElement('span');
     glyph.className = 'source-glyph';
     glyph.textContent = String(index + 1);
     const title = document.createElement('span');
     title.textContent = `${source.title} · ${source.section}`;
-    button.append(glyph, title);
-    return button;
+    chip.append(glyph, title);
+    return chip;
   }
 
   function createMessage(message) {
@@ -178,7 +178,7 @@
 
     const avatar = document.createElement('div');
     avatar.className = `message-avatar ${message.role === 'user' ? 'user-small' : ''}`;
-    avatar.textContent = message.role === 'user' ? 'АК' : 'П';
+    avatar.textContent = message.role === 'user' ? 'Вы' : 'П';
 
     const content = document.createElement('div');
     content.className = 'message-content';
@@ -186,7 +186,7 @@
     const meta = document.createElement('div');
     meta.className = 'message-meta';
     const name = document.createElement('strong');
-    name.textContent = message.role === 'user' ? 'Анна К.' : 'Помощник юриста';
+    name.textContent = message.role === 'user' ? 'Вы' : 'Помощник юриста';
     const time = document.createElement('span');
     time.textContent = displayTime(message.created_at || message.time);
     meta.append(name, time);
@@ -253,7 +253,6 @@
       button.addEventListener('click', async () => {
         if (chat.isDraft) {
           state.activeId = chat.id;
-          selectedSourceId = null;
           render();
           return;
         }
@@ -291,31 +290,58 @@
 
     statusTitle.textContent = 'Ответы подтверждены источниками';
     statusDetail.textContent = `${sources.length} источника в диалоге`;
-    const selected = sources.find((source) => source.id === selectedSourceId) || sources[sources.length - 1];
     sources.forEach((source) => {
+      const isExpanded = expandedSourceIds.has(source.id);
       const card = document.createElement('div');
-      card.className = `source-card ${source.id === selected.id ? 'selected' : ''}`;
+      card.className = `source-card ${focusedSourceId === source.id ? 'focused' : ''}`;
+      card.dataset.sourceId = source.id;
       const head = document.createElement('div');
       head.className = 'source-card-head';
-      const icon = document.createElement('span');
-      icon.className = 'source-file-icon';
-      icon.textContent = '§';
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'source-item-button';
+      item.setAttribute('aria-expanded', String(isExpanded));
+      item.setAttribute('aria-label', `Показать выдержку: ${source.title}`);
       const title = document.createElement('div');
       title.className = 'source-card-title';
       title.textContent = source.title;
-      const tag = document.createElement('div');
-      tag.className = 'source-tag';
-      tag.textContent = source.section;
-      title.append(tag);
-      head.append(icon, title);
-      const excerpt = document.createElement('p');
-      excerpt.className = 'source-excerpt';
-      excerpt.textContent = source.id === selected.id ? source.excerpt : 'Нажмите, чтобы открыть фрагмент.';
-      card.append(head, excerpt);
-      card.addEventListener('click', () => {
-        selectedSourceId = source.id;
+      item.append(title);
+      item.addEventListener('click', () => {
+        if (expandedSourceIds.has(source.id)) expandedSourceIds.delete(source.id);
+        else expandedSourceIds.add(source.id);
+        focusedSourceId = source.id;
         renderEvidence(messages);
       });
+      head.append(item);
+      const hasDocument = Boolean(source.doc_id);
+      const documentLink = document.createElement(hasDocument ? 'a' : 'button');
+      documentLink.className = 'source-download-button';
+      documentLink.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7m0 0 2.5-2.5M8 9.5 5.5 7M3 10.5v2A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5v-2"/></svg>';
+      if (hasDocument) {
+        documentLink.href = `/api/documents/${encodeURIComponent(source.doc_id)}`;
+        documentLink.setAttribute('download', '');
+        documentLink.setAttribute('aria-label', `Скачать документ ${source.title} в DOCX`);
+        documentLink.title = 'Скачать DOCX';
+      } else {
+        documentLink.type = 'button';
+        documentLink.disabled = true;
+        documentLink.setAttribute('aria-label', `Не удалось скачать ${source.title}: ссылка на файл отсутствует`);
+        documentLink.title = 'Ссылка на файл отсутствует';
+      }
+      head.append(documentLink);
+      card.append(head);
+      if (isExpanded) {
+        const section = document.createElement('div');
+        section.className = 'source-tag';
+        section.textContent = source.section;
+        const excerpt = document.createElement('p');
+        excerpt.className = 'source-excerpt';
+        excerpt.textContent = source.excerpt;
+        const previewActions = document.createElement('div');
+        previewActions.className = 'source-preview-actions';
+        previewActions.append(documentLink);
+        card.append(section, excerpt, previewActions);
+      }
       sourceList.append(card);
     });
   }
@@ -413,7 +439,6 @@
       }
       state.chats = [chat, ...state.chats.filter((item) => item.id !== chat.id)];
       state.activeId = chat.id;
-      selectedSourceId = null;
       render();
     } catch (error) {
       document.querySelector('#typing-indicator')?.remove();
@@ -484,15 +509,18 @@
     chatLayout.classList.add('no-evidence');
   });
 
-  document.querySelector('#messages').addEventListener('click', (event) => {
-    const sourceButton = event.target.closest('.message-source');
-    if (sourceButton) {
-      selectedSourceId = sourceButton.dataset.sourceId;
-      evidencePanel.classList.remove('collapsed');
-      chatLayout.classList.remove('no-evidence');
-      if (window.matchMedia('(max-width: 840px)').matches) evidencePanel.classList.add('mobile-open');
-      renderEvidence();
-    }
+  messagesEl.addEventListener('click', (event) => {
+    const sourceChip = event.target.closest('.message-source');
+    if (!sourceChip) return;
+
+    focusedSourceId = sourceChip.dataset.sourceId;
+    evidencePanel.classList.remove('collapsed');
+    chatLayout.classList.remove('no-evidence');
+    if (window.matchMedia('(max-width: 840px)').matches) evidencePanel.classList.add('mobile-open');
+    renderEvidence();
+    const card = [...sourceList.querySelectorAll('.source-card')]
+      .find((item) => item.dataset.sourceId === focusedSourceId);
+    card?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
 
   document.querySelector('#dismiss-notice').addEventListener('click', () => {

@@ -97,6 +97,9 @@ func (s *Service) Ask(ctx context.Context, ownerID string, chatID uuid.UUID, tex
 	if len(answer.Meta) > domain.MaxMetaBytes {
 		return empty, repository.ErrMetaTooLarge
 	}
+	if answer.Kind != domain.KindAnswer {
+		answer.Sources = nil
+	}
 	return s.repo.SaveExchange(ctx, repository.SaveExchangeInput{
 		OwnerID: owner, ChatID: chatID, UserText: text, Answer: answer.Answer,
 		Kind: answer.Kind, Meta: answer.Meta, LatencyMs: int(time.Since(started).Milliseconds()),
@@ -104,14 +107,15 @@ func (s *Service) Ask(ctx context.Context, ownerID string, chatID uuid.UUID, tex
 	})
 }
 
-func (s *Service) Document(ctx context.Context, docID string) (io.ReadCloser, error) {
+func (s *Service) Document(ctx context.Context, docID string) (DocumentContent, error) {
 	callCtx, cancel := withTimeout(ctx, s.mlTimeout)
-	body, err := s.ml.Document(callCtx, docID)
+	document, err := s.ml.Document(callCtx, docID)
 	if err != nil {
 		cancel()
-		return nil, err
+		return DocumentContent{}, err
 	}
-	return &cancelReadCloser{ReadCloser: body, cancel: cancel}, nil
+	document.Body = &cancelReadCloser{ReadCloser: document.Body, cancel: cancel}
+	return document, nil
 }
 
 func (s *Service) Health(ctx context.Context) Health {
