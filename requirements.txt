@@ -1,0 +1,2 @@
+# Python dependencies used by the ML service.
+httpx==0.28.1
