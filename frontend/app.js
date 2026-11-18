@@ -277,6 +277,7 @@
 
   function renderHistory() {
     const list = document.querySelector('#history-list');
+    const scrollTop = list.scrollTop;
     list.replaceChildren();
     state.chats.forEach((chat) => {
       const row = document.createElement('div');
@@ -317,6 +318,7 @@
       }
       list.append(row);
     });
+    list.scrollTop = scrollTop;
   }
 
   function renderEvidence(messages = activeChat().messages) {
