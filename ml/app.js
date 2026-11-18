@@ -223,7 +223,7 @@
       tag.className = 'source-tag';
       tag.textContent = `ЗАГЛУШКА · ${source.section}`;
       title.append(tag);
-      head.append(icon, title);
+      head.append(icon, title, createDownloadButton(source));
       const excerpt = document.createElement('p');
       excerpt.className = 'source-excerpt';
       excerpt.textContent = source.id === selected.id ? source.excerpt : 'Нажмите, чтобы посмотреть демо-фрагмент.';
@@ -231,6 +231,7 @@
       card.addEventListener('click', () => {
         selectedSourceId = source.id;
         renderEvidence(messages);
+        openSourceDocument(source);
       });
       sourceList.append(card);
     });
@@ -267,6 +268,109 @@
     } catch (_) {
       showToast('Не удалось скопировать текст');
     }
+  }
+
+  function safeFileName(value) {
+    return String(value || 'document')
+      .replace(/[\\\\/:*?"<>|]+/g, '-')
+      .replace(/\\s+/g, ' ')
+      .trim()
+      .slice(0, 90) || 'document';
+  }
+
+  function downloadSource(source) {
+    if (source.downloadUrl || source.fileUrl || source.url) {
+      const link = document.createElement('a');
+      link.href = source.downloadUrl || source.fileUrl || source.url;
+      link.download = source.fileName || safeFileName(source.title);
+      link.rel = 'noopener';
+      document.body.append(link);
+      link.click();
+      link.remove();
+      return;
+    }
+
+    // In the demo there is no connected document storage, so download the visible source details.
+    const content = [
+      source.title || 'Документ',
+      source.section || '',
+      '',
+      source.excerpt || 'Содержимое документа пока не подключено.'
+    ].join('\\n');
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${safeFileName(source.fileName || source.title)}.txt`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showToast('Демо-файл скачан в формате TXT');
+  }
+
+  function createDownloadButton(source, compact = false) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = compact ? 'source-download-button source-download-compact' : 'source-download-button';
+    button.setAttribute('aria-label', `Скачать ${source.title || 'документ'}`);
+    button.title = 'Скачать документ';
+    button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4"/><path d="M5 17v3h14v-3"/></svg>';
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      downloadSource(source);
+    });
+    return button;
+  }
+
+  function openSourceDocument(source) {
+    document.querySelector('.document-preview-overlay')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'document-preview-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', source.title || 'Документ');
+
+    const dialog = document.createElement('section');
+    dialog.className = 'document-preview';
+    const header = document.createElement('header');
+    header.className = 'document-preview-header';
+    const heading = document.createElement('div');
+    heading.className = 'document-preview-heading';
+    const title = document.createElement('strong');
+    title.textContent = source.title || 'Документ';
+    const section = document.createElement('span');
+    section.textContent = source.section || '';
+    heading.append(title, section);
+
+    const actions = document.createElement('div');
+    actions.className = 'document-preview-actions';
+    actions.append(createDownloadButton(source, true));
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'document-preview-close';
+    close.setAttribute('aria-label', 'Закрыть документ');
+    close.innerHTML = '&times;';
+    close.addEventListener('click', () => overlay.remove());
+    actions.append(close);
+    header.append(heading, actions);
+
+    const body = document.createElement('div');
+    body.className = 'document-preview-body';
+    body.textContent = source.excerpt || 'Содержимое документа пока не подключено.';
+    dialog.append(header, body);
+    overlay.append(dialog);
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) overlay.remove();
+    });
+    document.addEventListener('keydown', function closeOnEscape(event) {
+      if (event.key === 'Escape' && overlay.isConnected) {
+        overlay.remove();
+        document.removeEventListener('keydown', closeOnEscape);
+      }
+    });
+    document.body.append(overlay);
   }
 
   // Future backend integration point: replace this local mock with POST /api/chat.

@@ -119,6 +119,48 @@
     render();
   }
 
+  async function deleteChat(chatId) {
+    const chat = state.chats.find((item) => item.id === chatId);
+    if (!chat || chat.isDraft) return;
+    if (isSending && chat.id === state.activeId) {
+      showToast('Дождитесь завершения ответа, чтобы удалить этот чат.');
+      return;
+    }
+    if (!window.confirm(`Удалить чат «${chat.title}»? Его сообщения и материалы будут удалены.`)) return;
+
+    const wasActive = chat.id === state.activeId;
+    try {
+      await apiRequest(`/api/chats/${encodeURIComponent(chat.id)}`, { method: 'DELETE' });
+      state.chats = state.chats.filter((item) => item.id !== chat.id);
+      let nextChatLoadFailed = false;
+
+      if (wasActive) {
+        let nextChat = state.chats.find((item) => !item.isDraft) || state.chats.find((item) => item.isDraft);
+        if (!nextChat) {
+          nextChat = createDraftChat();
+          state.chats = [nextChat];
+        }
+        state.activeId = nextChat.id;
+        expandedSourceIds.clear();
+        focusedSourceId = null;
+        render();
+        if (!nextChat.isDraft) {
+          try {
+            await loadChat(nextChat.id);
+          } catch (error) {
+            nextChatLoadFailed = true;
+            showToast(error.message);
+          }
+        }
+      } else {
+        render();
+      }
+      if (!nextChatLoadFailed) showToast('Чат удалён');
+    } catch (error) {
+      showToast(error.message || 'Не удалось удалить чат.');
+    }
+  }
+
   async function createServerChat() {
     const result = await apiRequest('/api/chats', { method: 'POST' });
     const rawChat = result.chat;
@@ -237,20 +279,19 @@
     const list = document.querySelector('#history-list');
     list.replaceChildren();
     state.chats.forEach((chat) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = `history-item ${chat.id === state.activeId ? 'selected' : ''}`;
-      button.dataset.chatId = chat.id;
+      const row = document.createElement('div');
+      row.className = `history-item ${chat.id === state.activeId ? 'selected' : ''}`;
       const dot = document.createElement('span');
       dot.className = 'history-dot';
       const title = document.createElement('span');
       title.className = 'history-title';
       title.textContent = chat.title;
-      const more = document.createElement('span');
-      more.className = 'history-more';
-      more.textContent = '···';
-      button.append(dot, title, more);
-      button.addEventListener('click', async () => {
+      const openButton = document.createElement('button');
+      openButton.type = 'button';
+      openButton.className = 'history-open';
+      openButton.setAttribute('aria-current', chat.id === state.activeId ? 'page' : 'false');
+      openButton.append(dot, title);
+      openButton.addEventListener('click', async () => {
         if (chat.isDraft) {
           state.activeId = chat.id;
           render();
@@ -262,7 +303,19 @@
           showToast(error.message);
         }
       });
-      list.append(button);
+
+      row.append(openButton);
+      if (!chat.isDraft) {
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'history-delete';
+        deleteButton.setAttribute('aria-label', `Удалить чат «${chat.title}»`);
+        deleteButton.title = 'Удалить чат';
+        deleteButton.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M6 4V2.8h4V4m2 0-.6 9H4.6L4 4m2.5 2v4.5m3-4.5v4.5"/></svg>';
+        deleteButton.addEventListener('click', () => deleteChat(chat.id));
+        row.append(deleteButton);
+      }
+      list.append(row);
     });
   }
 
@@ -348,6 +401,9 @@
 
   function render() {
     const chat = activeChat();
+    const deleteActiveChat = document.querySelector('#chat-menu');
+    deleteActiveChat.disabled = chat.isDraft;
+    deleteActiveChat.title = chat.isDraft ? 'Этот диалог ещё не сохранён' : 'Удалить текущий чат';
     messagesEl.replaceChildren();
     const divider = document.createElement('div');
     divider.className = 'day-divider';
@@ -495,6 +551,7 @@
   });
 
   document.querySelector('#new-chat').addEventListener('click', startNewChat);
+  document.querySelector('#chat-menu').addEventListener('click', () => deleteChat(activeChat()?.id));
 
   document.querySelector('#show-sources').addEventListener('click', () => {
     evidencePanel.classList.remove('collapsed');
@@ -528,7 +585,6 @@
   });
 
   document.querySelector('#attach-button').addEventListener('click', () => showToast('Загрузка документов пока недоступна'));
-  document.querySelector('#chat-menu').addEventListener('click', () => showToast('Дополнительные действия пока недоступны'));
   document.querySelector('.help-button').addEventListener('click', () => showToast('Для поиска по договору укажите его номер, контрагента и дату'));
   document.querySelector('#copy-link').addEventListener('click', () => copyText(window.location.href));
 
